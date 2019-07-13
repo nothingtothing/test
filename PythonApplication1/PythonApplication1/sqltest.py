@@ -1,15 +1,21 @@
-import pymssql #引入pymssql模块
+#by 李星星
 
-def conn():
-    connect = pymssql.connect('LAPTOP-LDUC71HB', 'sa', 'root', 'GymMsystem') #服务器名,账户,密码,数据库名
-    if connect:
-        print("连接成功!")
-    return connect
+import poplib
+import html
+import time
+import DBaction
+from email.parser import Parser
+from email.header import decode_header
+from email.utils import parseaddr
 
-if __name__ == '__main__':
-    connect = conn()
-    cursor = connect.cursor()   #创建一个游标对象,python里的sql语句都要通过cursor来执行
-    cursor.execute("create table C_test02(id varchar(20))")   #执行sql语句
-    connect.commit()  #提交
-    cursor.close()   #关闭游标
-    connect.close()  #关闭连接
+#判断邮箱和授权码是否正确
+def judgePass(E,P):
+    try:
+        server=poplib.POP3_SSL('pop.qq.com')
+        server.user(E)
+        server.pass_(P)
+        server.quit()
+    except:
+        return False
+    else:
+        return True

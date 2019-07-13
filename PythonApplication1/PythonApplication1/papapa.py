@@ -1,3 +1,5 @@
+#by 李星星
+
 import poplib
 import html
 import time
@@ -42,7 +44,6 @@ def get_header(msg):
                 value=name
         maillist[i] = value
         i += 1
-        print(header + ':' + value)
 
 #获得附件储存到本地（如果有）
 def get_file(msg):     #取附件
@@ -52,7 +53,6 @@ def get_file(msg):     #取附件
             filename = decode_str(filename)
             data = part.get_payload(decode = True)#取出文件正文内容
             #定义文件保存路径(附件)
-            path='%s'%filename
             with open(path, 'wb') as f:
                 f.write(data)
             print(filename,'  is downloading...')
@@ -74,7 +74,6 @@ def get_content(msg):
         if content_type == 'text/plain':
             email_content_type = 'text'
         elif content_type == 'text/html':
-            print('html 格式 跳过')
             continue
             email_content_type = 'html'
         if charset:
@@ -89,15 +88,12 @@ def get_content(msg):
             continue
             #如果内容为空，也跳过
         maillist[3] = content
-        print(email_content_type + ' -----  ' + content)
 
 #解析获得html
 def get_html(msg, indent=0):
     if (msg.is_multipart()):
         parts = msg.get_payload()
         for n, part in enumerate(parts):
-            print('%spart %s' % ('  ' * indent, n))
-            print('%s--------------------' % ('  ' * indent))
             get_html(part, indent + 1)
     else:
         content_type = msg.get_content_type()
@@ -107,26 +103,28 @@ def get_html(msg, indent=0):
             if charset:
                 content = content.decode(charset)    
             maillist[6] = content
-            print(content)
 
 #将文本处理成能存放到数据库的形式
 def text_processing():
-    #处理文本格式（删除空格换行等）
-    maillist[2] = maillist[2].replace(',',' ')
-    maillist[3] = maillist[3].replace('\n','')
-    maillist[3] = maillist[3].replace(',','，')
-    #""替换为“”
-    num2 = 1
-    for i in range(0,len(maillist[3])):
-        if maillist[3][i] == '"':
-            if num2 % 2 == 1:
-                maillist[3] = maillist[3].replace('"','“',1)
-            elif num2 % 2 == 0:
-                maillist[3] = maillist[3].replace('"','”',1)
-        num2 += 1
-    maillist[3] = maillist[3].replace('\'','‘')
-    maillist[3] = ''.join(maillist[3].split())
-    maillist[6] = maillist[6].replace('\'','#')
+    try:#处理文本格式（删除空格换行等）
+        maillist[2] = maillist[2].replace(',',' ')
+        maillist[3] = maillist[3].replace('\n','')
+        maillist[3] = maillist[3].replace(',','，')
+        #""替换为“”
+        num2 = 1
+        for i in range(0,len(maillist[3])):
+            if maillist[3][i] == '"':
+                if num2 % 2 == 1:
+                    maillist[3] = maillist[3].replace('"','“',1)
+                elif num2 % 2 == 0:
+                    maillist[3] = maillist[3].replace('"','”',1)
+            num2 += 1
+        maillist[3] = maillist[3].replace('\'','‘')
+        maillist[3] = ''.join(maillist[3].split())
+        maillist[6] = maillist[6].replace('\'','#')
+    except Exception as e:
+        print('请检查文本格式是否为utf-8',e)
+
 
 def list_clear():
     #清空maillist内容
@@ -137,8 +135,11 @@ def html_download():
     db = DBaction.DBac()
     db.__init__()
     id = db.selectID()
-    with open('html%d.html'%id,'w',encoding='utf-8') as f:
-        f.write(maillist[6])
+    try:
+        with open('html%d.html'%id,'w',encoding='utf-8') as f:
+            f.write(maillist[6])
+    except Exception as e:
+        print('打开文件失败',e)
 #初始化
 def EmailInit():
     # 输入邮件地址, 口令和POP3服务器地址:
@@ -160,14 +161,19 @@ def EmailInit():
         msg_content = b'\r\n'.join(lines).decode('utf-8')
         msg = Parser().parsestr(msg_content)
         get_header(msg)
+        if i == 1:
+            print(maillist[1])
+            db1 = DBaction.DBac()
+            #db1.insertUser(maillist[1],email,password)
         get_file(msg)
         get_content(msg)
         get_html(msg)
         text_processing()
         html_download()
         list_clear()
-        db.insertEmailTest(maillist[0],maillist[1],maillist[2],maillist[3],maillist[4],maillist[6],maillist[7])   
+        db.insertEmailTest(i,maillist[0],maillist[1],maillist[2],maillist[3],maillist[4],maillist[5],maillist[6],maillist[7])   
     server.quit()
+
 
 #读取邮件放入数据库
 def addNew():
@@ -187,23 +193,25 @@ def addNew():
         index = len(mails)#邮件的总数
 
         if index > num:
+            count = index - num
+            print(count)
             num = index
-            #取邮件
-            resp, lines, octets = server.retr(index)
-            msg_content = b'\r\n'.join(lines).decode('utf-8')
-            msg = Parser().parsestr(msg_content)
-            get_header(msg)
-            get_file(msg)
-            get_content(msg)
-            get_html(msg)
-            text_processing()
-            html_download()
-            list_clear()
-            db.insertEmailTest(maillist[0],maillist[1],maillist[2],maillist[3],maillist[4],maillist[6],maillist[7])
-            print('您有新的邮件！')        
+            for i in range(1,count+1):
+                resp, lines, octets = server.retr(index-count + i)  #取邮件
+                msg_content = b'\r\n'.join(lines).decode('utf-8')
+                msg = Parser().parsestr(msg_content)
+                get_header(msg)
+                #get_file(msg)
+                get_content(msg)
+                get_html(msg)
+                text_processing()
+                #html_download()
+                list_clear()
+                db.insertEmailTest(index-count + i,maillist[0],maillist[1],maillist[2],maillist[3],maillist[4],maillist[5],maillist[6],maillist[7])
+                print('您有新的邮件！')        
         else:
             server.quit()
-            time.sleep(5)
+            time.sleep(3)
             continue
         server.quit()
         time.sleep(3)
@@ -222,8 +230,12 @@ def deleteM(i):
 
 if __name__ == '__main__':
     #初始化（爬取邮箱所有邮件并存放到数据库）
-    EmailInit()
+    #EmailInit()
     #判断是否有新的邮件，有就加入数据库
     #addNew()
+    db = DBaction.DBac()
+    db.__init__()
+    db.deleteMail(15)
+    deleteM(15)
     #按索引序号删除，1表示最新邮件，以此类推index为最后一封邮件
     #deleteM(1)
